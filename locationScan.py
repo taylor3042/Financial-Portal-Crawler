@@ -3,57 +3,71 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 def get_page(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    }
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=headers)
         if response.status_code == 200:
             return response.text
         else:
             print(f"Failed to fetch page: {response.status_code}")
+            print(f"message is {response.text}")
             return None
     except requests.exceptions.RequestException as e:
         print(f"Failed to fetch page: {e} The URL is: {url}")
         return None
 
-def findOthers(html, urls):
-    print('got to this point')
+def find_others(html, urls, base_url):
     soup = BeautifulSoup(html, 'html.parser')
-    navItems = soup.select_one("#Navigation-items-item")
-    print(navItems)
-    
+    nav_items = soup.find('ul', class_='Navigation-items')
+    if not nav_items:
+        return
 
+    links = nav_items.find_all('a')
+    link_urls = [link.get('href') for link in links if link.get('href')]
+    for link in link_urls:
+        find_end(urls, link, base_url)
 
+def find_end(urls, url, base_url):
+    full_url = urljoin(base_url, url)
 
-def findEnd(urls):
-    for url in urls:
-        if "CategoryID" in url:
-            findOthers(get_page(url), urls)  
-            # Recursion to loop back until there's no more links to change folder location.
-        elif "ArticleDet" in url:
-            findEnd.append(url)
-        else:
-            print("ERROR!")
+    if ("https://www.byui.edu/financial-aid/" in url
+    or "http://www.byui.edu/financial-aid/" in url
+    or "https://www.byui.edu/financial-services/" in url) and "#" not in url:
+        if full_url not in urls:
+            urls.add(full_url)  # Use set instead of list
+            soup = BeautifulSoup(get_page(full_url), 'html.parser')
 
+            # Find the main element with class 'Page-main'
+            #main_content = soup.find('main', class_='Page-main')
+            #if not main_content:
+            #    print("No 'main.Page-main' section found")
+            #    return
 
-def exceptions(links):
-    exception = str(links).strip()
-    if(exception != "Expand" and exception is not None):
-        #I'm leaving this open to find more exception to have under the tag I found that work for catagories.
-        return True
+            # Find all <a> tags within this main element
+            links = soup.find_all('a')
+            link_urls = [link.get('href') for link in links if link.get('href')]
+            for link in link_urls:
+                find_end(urls, link, base_url)
     else:
-        return False
-
+        print(f"Outbound site / site already in list: {url}")
 
 def main():
-    print("Using shallow scan...")
-    urls = []
+    print("Scanning...")
+    urls = set()  # Use set to store unique URLs
     
-    starting_path = 'https://www.byui.edu/financial-aid/'
-    findOthers(get_page(starting_path), urls)
-    findEnd(urls)
+    base_url = 'https://www.byui.edu/financial-aid/'
     
-    with open('locations.txt', 'w') as f:
-        for url in urls:
-            f.write(f"{url}\n")
+    page_content = get_page(base_url)
+    if page_content:
+        find_end(urls, base_url, base_url)
+        print(urls)
+    
+        with open('locations.txt', 'w') as f:
+            for url in urls:
+                f.write(f"{url}\n")
 
 if __name__ == '__main__':
     main()
+
