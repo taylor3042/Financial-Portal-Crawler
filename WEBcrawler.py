@@ -1,7 +1,6 @@
 import requests
 import csv
 from bs4 import BeautifulSoup, NavigableString
-from locationScan import main as location
 from dataCleaner import main as data_clean
 
 
@@ -70,6 +69,16 @@ def get_urls(txtFile, urls):
             urls.append(url)
     return urls
 
+def extract_urls_page(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    nav_items = soup.find('ul', class_='Navigation-items')
+    if not nav_items:
+        return
+    else:
+        links = nav_items.find_all('a')
+        link_urls = [link.get('href') for link in links if link.get('href')]
+        return link_urls
+
 # Display the list of URLs
 def extract_info(url):
     html = get_page(url) 
@@ -79,41 +88,41 @@ def extract_info(url):
         # Check if header already encountered
         if header in encountered_headers and header is not "Header Not Found":
             print(f"Skipping URL {url} as it has the same header as a previous URL.")
-            return None, None
+            return None, None, None
         else:
             encountered_headers.append(header)
         
         paragraphs = extract_paragraphs(html)
-        
+        uIP = extract_urls_page(html)
         # Check if header is not None before stripping
         if header is not None:
             header = header.strip()
         if paragraphs is not None:
             paragraphs = paragraphs.strip()
         
-        return header, paragraphs
+        return header, paragraphs, uIP
     else:
-        return None, None
+        return None, None, None
 
 
 
 def export_csv(urls, txtFile):
     with open(txtFile, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow(["Header", "Paragraphs"])
+        writer.writerow(["Header", "Paragraphs", "URLS in page"])
         for url in urls:
             print(url)
-            header, paragraphs = extract_info(url)
+            header, paragraphs, uIP = extract_info(url)
             if header is not None:
                 header = header.strip()
             if paragraphs is not None:
                 paragraphs = paragraphs.strip()
-            writer.writerow([header, paragraphs])
+            writer.writerow([header, paragraphs, uIP])
 
 def main():
     
     input_file = "locations.txt"
-    csvFile = "locations.csv"
+    csvFile = "htmls.csv"
     #location()
     urls = []
     get_urls(input_file, urls)
